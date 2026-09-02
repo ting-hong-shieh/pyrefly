@@ -2122,6 +2122,19 @@ impl Type {
     pub fn materialize(&self) -> Self {
         let mut ty = self.clone();
         ty.transform_types_in_type_variable_positions(&mut |ty| {
+            if let Type::ClassType(cls) = ty {
+                for (param, arg) in cls.targs_mut().iter_paired_mut() {
+                    if let Restriction::Bound(bound) = param.restriction()
+                        && arg.any(|ty| ty.is_any())
+                    {
+                        // A type argument can contain `Any` only because it is accepted as a
+                        // gradual specialization of the class parameter. Its materializations
+                        // are therefore limited by that parameter's bound; replacing the whole
+                        // argument with the bound gives us the widest valid materialization.
+                        *arg = bound.clone();
+                    }
+                }
+            }
             if ty.is_any() {
                 *ty = Type::Materialization;
             } else {
